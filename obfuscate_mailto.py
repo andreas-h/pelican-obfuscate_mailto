@@ -36,15 +36,19 @@ def encrypt_mail(address, origin, size, key):
     return e
 
 
-def decrypt_function(origin, size, key):
+def decrypt_function(origin, size, key, do_replace_link_textcontent=False):
     # JavaScript functions by Hervé Grall, see
     # www.grall.name/posts/1/antiSpam-emailAddressObfuscation.html#sec-1-5
     # and www.grall.name/posts/1/onlineTools_obfuscation.html#sec-2-4
+    if do_replace_link_textcontent:
+        replace_textcontent = '      element.textContent=decrypt(y).substring(7);'
+    else:
+        replace_textcontent = ''
     body = '''<script language="JavaScript" type="text/javascript">
   function openMailer(element) {{
       var y = element.getAttribute("gaia");
       element.setAttribute("href", decrypt(y));
-      element.setAttribute("onclick", "");
+      element.setAttribute("onclick", "");{replace_textcontent}
       delete element.gaia;
     }};
   
@@ -69,11 +73,12 @@ def decrypt_function(origin, size, key):
     var d = prefix + suffix
     return d;
   }}
-</script>'''.format(origin=origin, size=size, key=key)
+</script>'''.format(origin=origin, size=size, key=key,
+                    replace_textcontent=replace_textcontent)
     return body
 
 
-def process_html(content, metadata=None):
+def process_html(content, generator):
     if isinstance(content, contents.Static):
         return
 
@@ -112,17 +117,18 @@ def process_html(content, metadata=None):
 
     # insert JavaScript functions into <body/>
     if insert_decrypt:
-        content._content += decrypt_function(origin, size, key)
+        r_ = generator.settings.get('OBFUSCATE_MAILTO_REPLACE_TEXTCONTENT')
+        content._content += decrypt_function(origin, size, key, r_)
 
 
 def process_all_html(content_generators):
     for generator in content_generators:
         if isinstance(generator, generators.ArticlesGenerator):
             for article in generator.articles + generator.translations:
-                process_html(article)
+                process_html(article, generator)
         elif isinstance(generator, generators.PagesGenerator):
             for page in generator.pages:
-                process_html(page)
+                process_html(page, generator)
 
 
 def register():
